@@ -1,28 +1,77 @@
 const http = require('node:http');
+const { query } = require('./database');
+const { renderPage } = require('./page');
 
-const port = process.env.PORT || 3000;
+function fail(status, message) {
+  return Object.assign(new Error(message), { status });
+}
+
+async function readForm(request) {
+  if (request.headers['sec-fetch-site'] === 'cross-site') {
+    throw fail(403, 'Cross-site form submissions are not allowed.');
+  }
+  if (request.headers['content-type']?.split(';')[0] !== 'application/x-www-form-urlencoded') {
+    throw fail(415, 'Submit a URL-encoded form.');
+  }
+  let size = 0;
+  const chunks = [];
+  for await (const chunk of request) {
+    size += chunk.length;
+    if (size > 16384) throw fail(413, 'Form is too large.');
+    chunks.push(chunk);
+  }
+  return new URLSearchParams(Buffer.concat(chunks).toString('utf8'));
+}
+
+async function handle(request, response) {
+  const path = new URL(request.url, 'http://localhost').pathname;
+
+  if (request.method === 'GET' && path === '/health') {
+    await query('SELECT 1');
+    response.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
+    return response.end('ok\n');
+  }
+
+  if (request.method === 'GET' && path === '/') {
+    const todos = JSON.parse(await query("SELECT COALESCE(json_agg(t ORDER BY id), '[]'::json) FROM todos t"));
+    response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    return response.end(renderPage(todos));
+  }
+
+  const action = path.match(/^\/todos\/([1-9][0-9]{0,15})\/(done|delete)$/);
+  if (request.method !== 'POST' || (path !== '/todos' && !action)) {
+    throw fail(404, 'Not found.');
+  }
+
+  const form = await readForm(request);
+  if (path === '/todos') {
+    const title = (form.get('title') || '').trim();
+    if (!title || [...title].length > 200 || title.includes('\0')) {
+      throw fail(400, 'Enter a todo between 1 and 200 characters.');
+    }
+    await query('INSERT INTO todos (title) VALUES ($1)', [title]);
+  } else {
+    const id = action[1];
+    const result = action[2] === 'delete'
+      ? await query('DELETE FROM todos WHERE id = $1 RETURNING id', [id])
+      : await query('UPDATE todos SET done = $1 WHERE id = $2 RETURNING id', [form.get('done') === '1', id]);
+    if (!result) throw fail(404, 'Todo not found.');
+  }
+
+  response.writeHead(303, { Location: '/' });
+  response.end();
+}
 
 const server = http.createServer((request, response) => {
-  const renderedAt = new Date().toISOString();
-
-  response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-  response.end(`<!doctype html>
-<html lang="fr">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Hello Tiny Server</title>
-  </head>
-  <body>
-    <main>
-      <h1>Hello World</h1>
-      <p>Rendered at <time datetime="${renderedAt}">${renderedAt}</time></p>
-    </main>
-  </body>
-</html>
-`);
+  response.setHeader('Cache-Control', 'no-store');
+  response.setHeader('Content-Security-Policy', "default-src 'none'; form-action 'self'; base-uri 'none'");
+  response.setHeader('X-Content-Type-Options', 'nosniff');
+  handle(request, response).catch(error => {
+    if (!error.status) console.error('Database request failed:', error.code);
+    response.writeHead(error.status || 503, { 'Content-Type': 'text/plain; charset=utf-8' });
+    response.end(`${error.status ? error.message : 'Database unavailable.'}\n`);
+  });
 });
 
-server.listen(port, () => {
-  console.log(`Server listening on http://localhost:${port}`);
-});
+const port = process.env.PORT || 3000;
+server.listen(port, '0.0.0.0', () => console.log(`Server listening on port ${port}`));
