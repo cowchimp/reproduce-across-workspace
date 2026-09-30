@@ -5,13 +5,14 @@ No CSS, browser JavaScript, authentication, or seeded data.
 The server uses [node-postgres (`pg`)](https://node-postgres.com/features/pooling)
 with a shared connection pool and parameterized queries. Connections use the
 `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, and `PGPASSWORD` environment variables.
-Docker installs dependencies from `pnpm-lock.yaml`; use
+Compose uses the standard Node image and installs dependencies from
+`pnpm-lock.yaml` each time the app starts. No Dockerfile or build step is needed. Use
 `pnpm install --frozen-lockfile` for a local dependency install.
 
 ## Run locally
 
 ```sh
-docker compose -f docker-compose.base44.yml up -d --build --wait
+docker compose -f docker-compose.base44.yml up -d --wait
 ```
 
 Open http://localhost:3000. Add a todo, change its checkbox and press Save,
@@ -21,12 +22,27 @@ If port 3000 is occupied, prefix the command with `APP_PORT=3001`.
 The web port defaults to loopback. To expose it on a sandbox's interfaces,
 prefix the command with `APP_BIND=0.0.0.0`.
 
-On networks with an HTTPS inspection proxy, supply your trusted CA bundle
-using Docker's optional `npm_ca` build secret:
+Dependencies and the package-manager cache live in the `app-dependencies`
+volume, separate from the read-only source mount and the database. Startup
+still needs registry access to verify the lockfile and fetch missing packages.
+
+On networks with an HTTPS inspection proxy, create an ignored
+`docker-compose.local.yml` with your trusted CA bundle:
+
+```yaml
+services:
+  app:
+    volumes:
+      - /absolute/path/to/trusted-ca.pem:/run/certs/npm-ca.pem:ro
+    environment:
+      NODE_EXTRA_CA_CERTS: /run/certs/npm-ca.pem
+      npm_config_cafile: /run/certs/npm-ca.pem
+```
+
+Then include that file whenever starting or recreating the app:
 
 ```sh
-docker build --secret id=npm_ca,src=/path/to/trusted-ca.pem -t reproduce-across-workspace-app .
-docker compose -f docker-compose.base44.yml up -d --no-build --wait
+docker compose -f docker-compose.base44.yml -f docker-compose.local.yml up -d --wait
 ```
 
 ## Database persistence

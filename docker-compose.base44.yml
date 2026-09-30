@@ -1,10 +1,21 @@
 services:
   app:
-    build: .
+    image: node:22-alpine
     working_dir: /app
     volumes:
       - .:/app:ro
+      - app-dependencies:/opt/todo-app
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        cp /app/package.json /app/pnpm-lock.yaml /app/pnpm-workspace.yaml /app/.npmrc /opt/todo-app/
+        cd /opt/todo-app
+        corepack pnpm install --prod --frozen-lockfile --ignore-scripts
+        exec node /app/server.js
     environment:
+      NODE_PATH: /opt/todo-app/node_modules
+      COREPACK_HOME: /opt/todo-app/.corepack
       PGHOST: db
       PGPORT: 5432
       PGDATABASE: todos
@@ -38,3 +49,4 @@ services:
 
 volumes:
   todo-data:
+  app-dependencies:
