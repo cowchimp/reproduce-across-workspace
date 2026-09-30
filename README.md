@@ -19,8 +19,8 @@ Open http://localhost:3000. Add a todo, change its checkbox and press Save,
 or press Delete. Every change is stored in the database.
 
 If port 3000 is occupied, prefix the command with `APP_PORT=3001`.
-The web port defaults to loopback. To expose it on a sandbox's interfaces,
-prefix the command with `APP_BIND=0.0.0.0`.
+The web port defaults to `0.0.0.0` so Base Code can reach the sandbox preview.
+For localhost-only use, prefix the command with `APP_BIND=127.0.0.1`.
 
 Dependencies and the npm cache live in the `app-dependencies`
 volume, separate from the read-only source mount and the database. Startup
@@ -32,6 +32,8 @@ On networks with an HTTPS inspection proxy, create an ignored
 ```yaml
 services:
   app:
+    ports: !override
+      - "127.0.0.1:${APP_PORT:-3000}:3000"
     volumes:
       - /absolute/path/to/trusted-ca.pem:/run/certs/npm-ca.pem:ro
     environment:
@@ -44,6 +46,9 @@ Then include that file whenever starting or recreating the app:
 ```sh
 docker compose -f docker-compose.base44.yml -f docker-compose.local.yml up -d --wait
 ```
+
+This local override requires Compose 2.24.4 or later. It is ignored by Git;
+Base Code starts only `docker-compose.base44.yml`, without local certificate settings.
 
 ## Database persistence
 
@@ -73,5 +78,7 @@ docker compose -f docker-compose.base44.yml exec -T db psql -U todos -d todos -c
 docker compose -f docker-compose.base44.yml exec -T db pg_dump -U todos -d todos -Fc > todos.dump
 ```
 
-`GET /health` checks connectivity to Postgres. Source is bind-mounted; after
-editing it, restart the app with `docker compose -f docker-compose.base44.yml restart app`.
+`GET /health` checks connectivity to Postgres. Source is bind-mounted and
+Node's watch mode restarts the server when its JavaScript files change.
+If your local Docker mount does not forward file-change events, restart the app
+with `docker compose -f docker-compose.base44.yml -f docker-compose.local.yml restart app`.
