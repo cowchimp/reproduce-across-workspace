@@ -1,0 +1,4 @@
+minimumReleaseAge: 10080
+blockExoticSubdeps: true
+# Corepack selects the pinned package manager; pnpm should not bootstrap itself.
+pmOnFail: ignore

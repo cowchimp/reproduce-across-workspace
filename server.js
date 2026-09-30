@@ -1,5 +1,5 @@
 const http = require('node:http');
-const { query } = require('./database');
+const database = require('./database');
 const { renderPage } = require('./page');
 
 function fail(status, message) {
@@ -27,13 +27,13 @@ async function handle(request, response) {
   const path = new URL(request.url, 'http://localhost').pathname;
 
   if (request.method === 'GET' && path === '/health') {
-    await query('SELECT 1');
+    await database.query('SELECT 1');
     response.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
     return response.end('ok\n');
   }
 
   if (request.method === 'GET' && path === '/') {
-    const todos = JSON.parse(await query("SELECT COALESCE(json_agg(t ORDER BY id), '[]'::json) FROM todos t"));
+    const { rows: todos } = await database.query('SELECT id, title, done FROM todos ORDER BY id');
     response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     return response.end(renderPage(todos));
   }
@@ -49,13 +49,13 @@ async function handle(request, response) {
     if (!title || [...title].length > 200 || title.includes('\0')) {
       throw fail(400, 'Enter a todo between 1 and 200 characters.');
     }
-    await query('INSERT INTO todos (title) VALUES ($1)', [title]);
+    await database.query('INSERT INTO todos (title) VALUES ($1)', [title]);
   } else {
     const id = action[1];
     const result = action[2] === 'delete'
-      ? await query('DELETE FROM todos WHERE id = $1 RETURNING id', [id])
-      : await query('UPDATE todos SET done = $1 WHERE id = $2 RETURNING id', [form.get('done') === '1', id]);
-    if (!result) throw fail(404, 'Todo not found.');
+      ? await database.query('DELETE FROM todos WHERE id = $1 RETURNING id', [id])
+      : await database.query('UPDATE todos SET done = $1 WHERE id = $2 RETURNING id', [form.get('done') === '1', id]);
+    if (!result.rowCount) throw fail(404, 'Todo not found.');
   }
 
   response.writeHead(303, { Location: '/' });
@@ -75,3 +75,13 @@ const server = http.createServer((request, response) => {
 
 const port = process.env.PORT || 3000;
 server.listen(port, '0.0.0.0', () => console.log(`Server listening on port ${port}`));
+
+function shutdown() {
+  server.close(() => database.end().catch(error => {
+    console.error('Database shutdown failed:', error.code);
+    process.exitCode = 1;
+  }));
+}
+
+process.once('SIGTERM', shutdown);
+process.once('SIGINT', shutdown);

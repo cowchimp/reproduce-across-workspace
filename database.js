@@ -1,19 +1,10 @@
-const { execFile } = require('node:child_process');
+const { Pool } = require('pg');
 
-function query(sql, values = []) {
-  const args = ['-X', '-qAt', '--set=ON_ERROR_STOP=1'];
-  values.forEach((value, index) => args.push(`--set=param${index}=${value}`));
-  const bindings = values.map((_, index) => `:param${index}`).join(' ');
-  const input = values.length ? `${sql}\n\\bind ${bindings}\n\\g\n` : `${sql};\n`;
+const pool = new Pool({
+  connectionTimeoutMillis: 5000,
+  statement_timeout: 10000,
+});
 
-  return new Promise((resolve, reject) => {
-    const child = execFile('psql', args, { timeout: 10000 }, (error, stdout) => {
-      if (error) reject(error);
-      else resolve(stdout.trim());
-    });
-    child.stdin.on('error', reject);
-    child.stdin.end(input);
-  });
-}
+pool.on('error', error => console.error('Idle database connection failed:', error.code));
 
-module.exports = { query };
+module.exports = pool;

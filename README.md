@@ -1,8 +1,12 @@
 # Todo database fixture
 
 Plain HTML forms and a table, served by Node.js with a PostgreSQL database.
-No CSS, browser JavaScript, npm dependencies, authentication, or seeded data.
-The server uses the installed `psql` client with bound SQL parameters.
+No CSS, browser JavaScript, authentication, or seeded data.
+The server uses [node-postgres (`pg`)](https://node-postgres.com/features/pooling)
+with a shared connection pool and parameterized queries. Connections use the
+`PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, and `PGPASSWORD` environment variables.
+Docker installs dependencies from `pnpm-lock.yaml`; use
+`pnpm install --frozen-lockfile` for a local dependency install.
 
 ## Run locally
 
@@ -16,6 +20,14 @@ or press Delete. Every change is stored in the database.
 If port 3000 is occupied, prefix the command with `APP_PORT=3001`.
 The web port defaults to loopback. To expose it on a sandbox's interfaces,
 prefix the command with `APP_BIND=0.0.0.0`.
+
+On networks with an HTTPS inspection proxy, supply your trusted CA bundle
+using Docker's optional `npm_ca` build secret:
+
+```sh
+docker build --secret id=npm_ca,src=/path/to/trusted-ca.pem -t reproduce-across-workspace-app .
+docker compose -f docker-compose.base44.yml up -d --no-build --wait
+```
 
 ## Database persistence
 
