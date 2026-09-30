@@ -9,13 +9,13 @@ services:
       - /bin/sh
       - -ec
       - |
-        cp /app/package.json /app/pnpm-lock.yaml /app/pnpm-workspace.yaml /app/.npmrc /opt/todo-app/
+        cp /app/package.json /app/package-lock.json /app/.npmrc /opt/todo-app/
         cd /opt/todo-app
-        corepack pnpm install --prod --frozen-lockfile --ignore-scripts
+        npm ci --omit=dev --ignore-scripts --no-audit --no-fund
         exec node /app/server.js
     environment:
       NODE_PATH: /opt/todo-app/node_modules
-      COREPACK_HOME: /opt/todo-app/.corepack
+      npm_config_cache: /opt/todo-app/.npm
       PGHOST: db
       PGPORT: 5432
       PGDATABASE: todos

@@ -6,8 +6,8 @@ The server uses [node-postgres (`pg`)](https://node-postgres.com/features/poolin
 with a shared connection pool and parameterized queries. Connections use the
 `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, and `PGPASSWORD` environment variables.
 Compose uses the standard Node image and installs dependencies from
-`pnpm-lock.yaml` each time the app starts. No Dockerfile or build step is needed. Use
-`pnpm install --frozen-lockfile` for a local dependency install.
+`package-lock.json` with `npm ci` each time the app starts. No Dockerfile or
+build step is needed. Use `npm ci` for a local dependency install.
 
 ## Run locally
 
@@ -22,9 +22,9 @@ If port 3000 is occupied, prefix the command with `APP_PORT=3001`.
 The web port defaults to loopback. To expose it on a sandbox's interfaces,
 prefix the command with `APP_BIND=0.0.0.0`.
 
-Dependencies and the package-manager cache live in the `app-dependencies`
+Dependencies and the npm cache live in the `app-dependencies`
 volume, separate from the read-only source mount and the database. Startup
-still needs registry access to verify the lockfile and fetch missing packages.
+can reuse cached package downloads; the lockfile pins the installed versions.
 
 On networks with an HTTPS inspection proxy, create an ignored
 `docker-compose.local.yml` with your trusted CA bundle:
