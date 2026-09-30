@@ -27,10 +27,10 @@ function renderPage(todos) {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Todos</title>
+  <title>My Todos</title>
 </head>
 <body>
-  <h1>Todos</h1>
+  <h1>My Todos</h1>
   <form action="/todos" method="post">
     <label for="title">New todo:</label>
     <input id="title" name="title" type="text" maxlength="200" required>
