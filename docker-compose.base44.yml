@@ -1,0 +1,47 @@
+services:
+  db:
+    image: postgres:16
+    restart: on-failure
+    environment:
+      - POSTGRES_USER=todos
+      - POSTGRES_PASSWORD=todos_dev_password
+      - POSTGRES_DB=todos
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U todos -d todos"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  web:
+    image: node:22
+    restart: on-failure
+    working_dir: /app
+    command: ["sh", "-ec", "npm ci --no-audit --no-fund && exec node --watch server.js"]
+    environment:
+      - PORT=3000
+      - PGHOST=db
+      - PGPORT=5432
+      - PGUSER=todos
+      - PGPASSWORD=todos_dev_password
+      - PGDATABASE=todos
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./:/app
+      - node-modules:/app/node_modules
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      start_period: 60s
+      retries: 3
+
+volumes:
+  db-data:
+  node-modules:
