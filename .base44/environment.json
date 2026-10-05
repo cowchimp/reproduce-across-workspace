@@ -1,0 +1,12 @@
+{
+  "previewPort": 3000,
+  "healthPath": "/health",
+  "startCommand": "docker compose -f docker-compose.base44.yml up -d",
+  "secrets": [
+    {
+      "name": "MONGODB_URI",
+      "description": "Connection string for the shared Base44 database dependency named \"mongodb\" (mongo:8.0); installed automatically by the platform.",
+      "requiredAtBoot": true
+    }
+  ]
+}
