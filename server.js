@@ -27,18 +27,18 @@ async function handle(request, response) {
   const path = new URL(request.url, 'http://localhost').pathname;
 
   if (request.method === 'GET' && path === '/health') {
-    await database.query('SELECT 1');
+    await database.ping();
     response.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
     return response.end('ok\n');
   }
 
   if (request.method === 'GET' && path === '/') {
-    const { rows: todos } = await database.query('SELECT id, title, done FROM todos ORDER BY id');
+    const todos = await database.list();
     response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     return response.end(renderPage(todos));
   }
 
-  const action = path.match(/^\/todos\/([1-9][0-9]{0,15})\/(done|delete)$/);
+  const action = path.match(/^\/todos\/([a-f0-9]{24})\/(done|delete)$/);
   if (request.method !== 'POST' || (path !== '/todos' && !action)) {
     throw fail(404, 'Not found.');
   }
@@ -49,13 +49,13 @@ async function handle(request, response) {
     if (!title || [...title].length > 200 || title.includes('\0')) {
       throw fail(400, 'Enter a todo between 1 and 200 characters.');
     }
-    await database.query('INSERT INTO todos (title) VALUES ($1)', [title]);
+    await database.add(title);
   } else {
     const id = action[1];
     const result = action[2] === 'delete'
-      ? await database.query('DELETE FROM todos WHERE id = $1 RETURNING id', [id])
-      : await database.query('UPDATE todos SET done = $1 WHERE id = $2 RETURNING id', [form.get('done') === '1', id]);
-    if (!result.rowCount) throw fail(404, 'Todo not found.');
+      ? await database.remove(id)
+      : await database.setDone(id, form.get('done') === '1');
+    if (!(result.deletedCount ?? result.matchedCount)) throw fail(404, 'Todo not found.');
   }
 
   response.writeHead(303, { Location: '/' });
@@ -77,7 +77,7 @@ const port = process.env.PORT || 3000;
 server.listen(port, '0.0.0.0', () => console.log(`Server listening on port ${port}`));
 
 function shutdown() {
-  server.close(() => database.end().catch(error => {
+  server.close(() => database.close().catch(error => {
     console.error('Database shutdown failed:', error.code);
     process.exitCode = 1;
   }));

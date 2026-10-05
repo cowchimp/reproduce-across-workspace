@@ -9,6 +9,6 @@
     "node": ">=22"
   },
   "dependencies": {
-    "pg": "8.23.0"
+    "mongodb": "6.20.0"
   }
 }
