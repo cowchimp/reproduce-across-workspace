@@ -2,6 +2,8 @@
 
 - Plain Node 22 HTTP server (`server.js`), no framework; HTML rendered in `page.js`. `node --watch` reloads on edits.
 - DB connection comes entirely from `PG*` env vars (node-postgres `new Pool()` defaults) via `/run/base44/app.env` — a shared remote Postgres, same data for all branches. Never drop/reseed it.
+- Shared database dependency name: `db` (image `ghcr.io/railwayapp-templates/postgres-ssl:17`, self-signed TLS). Reuse it with `provision_shared_database(name="db")`. Secrets: `DATABASE_URL`, `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE`, `PGSSLMODE`.
+- `PGSSLMODE=no-verify`: traffic is encrypted, but the certificate is not verified because it's self-signed. node-postgres treats `require` as verify, so `require` would reject this certificate.
 - Schema: `init.sql` has no migration framework. `.base44/init-db.js` (the `db-init` compose service) applies it only if `public.todos` is missing, inside a transaction holding an advisory lock. Future schema changes need their own idempotent step — re-running init.sql will fail on an existing table.
 - Verify: `curl localhost:3000/health` → `ok`; `curl -X POST -H 'Content-Type: application/x-www-form-urlencoded' -d title=x localhost:3000/todos` → 303.
 - No test suite.
